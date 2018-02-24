@@ -1,8 +1,8 @@
 # MafiaBot
 
-A Discord bot for coordinating a game of mafia without the need for a host!  
+A Discord bot for coordinating a game of mafia without the need for a host!
 
-Join our public Mafia server if you want to try out the bot: http://discord.me/mafia  
+**still under developement**  
 
 ## Features
 * Fully scriptable linear-flow [role system](mafia.js#L1401-L1429) with [mixins](roles/mods) for super flexible yet simple role definitions.
@@ -14,27 +14,21 @@ Join our public Mafia server if you want to try out the bot: http://discord.me/m
 
 ## Install
 
-**Currently you cannot install this bot on your server, please don't come to me asking for help about it!**
+* Node.js 8.0.0 or newer is required (because of current discord.js requirements)
+
+```sh
+$ npm install
+```
+* Add the bot to the Discord server (https://discordapp.com/oauth2/authorize?client_id=CLIENT_ID_HERE&scope=bot)
 
 ## Config
-
-Setup all the admin user ID values in `config.js`  
-Setup the bot's user token in `creds.js` (follow the [Discord developer guide](https://discordapp.com/developers/docs/intro) to get the token)  
+* Setup all the admin user ID values in `config.js`  
+* Setup the bot's user token in `creds.js` (follow the [Discord developer guide](https://discordapp.com/developers/docs/intro) to get the token)
 
 ## Run
 
 ```sh
 $ npm start
-```
-or
-```sh
-$ node --harmony_rest_parameters mafia-release.js
-```
-The app uses the Rest Parameters feature so make sure that flag is set. The app will crash immediately if it's not set, so it should be easy to catch.  
-
-On a Windows server, you can use the autorun batch file to make sure the bot seamlessly recovers from errors.  
-```sh
-$ mafiabot_autorun_and_update.bat
 ```
 
 ## Debug
@@ -42,12 +36,10 @@ $ mafiabot_autorun_and_update.bat
 Install [Node Inspector](https://github.com/node-inspector/node-inspector), then
 
 ```sh
-$ node-debug --nodejs --harmony_rest_parameters mafia-debug.js
+$ node-debug --nodejs mafia-debug.js
 ```
 
 ## Credits
 Tombolo: *Role setup contributions*  
-foolmoron: *Everything else*  
-
-## Shout Out
-To Quick-Man for being the winner of the first ever real game of mafia coordinated by MafiaBot!
+foolmoron: *First version*  
+araver82: *porting to discord 11+, adding Den Mafia style*

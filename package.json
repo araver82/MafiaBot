@@ -1,34 +1,33 @@
 {
   "name": "mafiabot",
-  "version": "0.2.0",
-  "description": "Discord bot for playing Mafia",
+  "version": "0.3.0",
+  "description": "Discord Bot for playing (Den) Mafia",
   "scripts": {
     "start": "node mafia-release.js"
   },
   "main": "mafia.js",
   "repository": {
     "type": "git",
-    "url": "git+https://foolmoron@github.com/foolmoron/MafiaBot.git"
+    "url": "git+https://araver82@github.com/araver82/MafiaBot.git"
   },
   "keywords": [
     "mafia",
     "game",
     "bot",
     "discord",
-    "foolmoron",
-    "b8"
+    "mafiamaniac"
   ],
-  "author": "foolmoron",
+  "author": "araver82",
   "license": "CC-BY-NC-4.0",
   "bugs": {
-    "url": "https://github.com/foolmoron/MafiaBot/issues"
+    "url": "https://github.com/araver82/MafiaBot/issues"
   },
-  "homepage": "https://github.com/foolmoron/MafiaBot#readme",
+  "homepage": "https://github.com/araver82/MafiaBot#readme",
   "engine": {
-    "node": ">= 7.0.0"
+    "node": ">= 8.0.0"
   },
   "dependencies": {
-    "discord.js": "^7.0.1",
+    "discord.js": "^11.3.0",
     "fast-levenshtein": "^1.1.3",
     "jaro-winkler": "^0.2.6",
     "lodash": "^4.11.1"

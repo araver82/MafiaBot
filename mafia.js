@@ -33,8 +33,49 @@ var data = _.merge({
     games: [],
 }, getData());
 saveData(data);
+
 var mafiabot = new Discord.Client();
 
+//#1 login
+mafiabot.login(config.token);
+
+mafiabot.on('ready', () => {
+	console.log(`Logged in successfully as ${mafiabot.user.tag}!`);
+	
+	// wait for channels to be cached first or else there will be weird bugs
+    var loginChecks = 0,
+		checkForChannelsThenKickoff = () => {
+        if (!!mafiabot.channels && mafiabot.channels.size) {
+			console.log(`I am in ${mafiabot.channels.size} channels in ${mafiabot.guilds.size} guilds!`);
+			
+            mainLoop(0);
+        } else {
+            loginChecks++;
+			console.log(`Cannot see channels! retrying: `+loginChecks);
+            if (loginChecks >= config.loginChecksBeforeRebooting) {
+                throw "Failed login check - rebooting!";
+            } else {
+                setTimeout(checkForChannelsThenKickoff, 1000);
+            }
+        }
+    }
+	
+    checkForChannelsThenKickoff();
+});
+
+mafiabot.on('message', message => {
+	if(message.author.bot) return;
+	
+	//console.log(`Got`+msg);
+	
+	if (message.content === 'ping') {
+		message.reply('pong');
+	}
+	
+});
+
+
+/*
 // synchronous messages
 mafiabot.syncMessage = (channelId, content, delay, unshift) => {
     var record = {
@@ -1514,4 +1555,5 @@ mafiabot.loginWithToken(config.token, null, null, (error, token) => {
     }
     checkForChannelsThenKickoff();
 });
+*/
 module.exports = mafiabot;
