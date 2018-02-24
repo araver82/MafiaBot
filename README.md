@@ -1,16 +1,18 @@
 # MafiaBot
 
-A Discord bot for hosting a game of Den Mafia(*)!
+A Discord bot for hosting a game of Den Mafia!
 
 **still under developement**  
 
-*Den Mafia's home: https://mafiamaniac.net
+* Den Mafia's home: http://mafiamaniac.net
 
 ## Features
+
+**TODO list:**
 * Fully scriptable linear-flow [role system](mafia.js#L1401-L1429) with [mixins](roles/mods) for super flexible yet simple role definitions.
 * Add your own role setups using any combination of roles and mixins for any number of players.
 * Configurable role setup [variations](roles/variations/index.js) which randomly change setups to get more fun and surprise out of your setups.
-* Custom data store system that is IMPERVIOUS to corruption and crashes. Silently [recovers from any error](mafiabot_autorun_and_update.bat) and continues running seamlessly.
+* Custom data store system that is IMPERVIOUS to corruption and crashes.
 * Total control of user speech and group chat permissions to fully enforce no-talking-at-night and secret mafia chat rules.
 * Keeps track of many in-game statistics such as a history of all votes made by every player.
 
