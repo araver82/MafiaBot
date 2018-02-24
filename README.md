@@ -1,8 +1,10 @@
 # MafiaBot
 
-A Discord bot for coordinating a game of mafia without the need for a host!
+A Discord bot for hosting a game of Den Mafia(*)!
 
 **still under developement**  
+
+*Den Mafia's home: https://mafiamaniac.net
 
 ## Features
 * Fully scriptable linear-flow [role system](mafia.js#L1401-L1429) with [mixins](roles/mods) for super flexible yet simple role definitions.

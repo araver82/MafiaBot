@@ -16,8 +16,11 @@ if (global.DEBUG) {
 }
 module.exports = _.merge({
     admins: [
-        '88020438474567680', // fool
+        '407638095182168064',
     ],
+	defaultChannelId: '416973662256627714',
+	defaultChannelName: 'general',
+	
     feedbackFilePath: 'data/feedback.txt',
     dataJSONPath: 'data/data.json',
     rolesetJSONPath: 'data/rolesets.json',
@@ -36,4 +39,5 @@ module.exports = _.merge({
     confirmingReminderInterval: 20*1000,
     nightActionReminderInterval: 60*1000,
     nightActionBufferTime: 20*1000,
+	
 }, creds, overrides);
