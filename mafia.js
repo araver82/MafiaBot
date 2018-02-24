@@ -56,11 +56,17 @@ bot.on('ready', () => {
 			
 			//send message
 			if(!!bot.mainChannel){
-				console.log(`>> I have no mouth but I can speak!`);
-				//bot.mainChannel.send(`MMBot is here ... have no fear!`);
+				console.log(`>> I have no mouth but I can and must speak!`);
+				bot.mainChannel.send(`MMBot is here ... have no fear!`);
 			} else {
 				console.log(`>> Failed to get a main channel to speak in!`);
 			}
+			
+			//send message to admin
+			console.log(`>> I need to alert my masters!`);
+			config.admins.forEach(admin => {
+				bot.privateMessage(admin, `>> I am awake master!`);	
+			});
 			
             mainLoop(0);
         } else {
@@ -81,7 +87,7 @@ bot.on('ready', () => {
 bot.channelMessage = (channelId, message) => {
 	if(!!channelId){
 		//find channel and send message
-		var channel = bot.channels.get(channelId)	
+		var channel = bot.channels.get(channelId);
 		if(!!channel){
 			channel.send(message);
 		} else {
@@ -94,16 +100,16 @@ bot.channelMessage = (channelId, message) => {
 
 //communication with a player
 bot.privateMessage = (playerId, message) => {
-	if(!!channelId){
-		//find channel and send message
-		var channel = bot.channels.get(channelId)	
-		if(!!channel){
-			channel.send(message);
+	if(!!playerId){
+		//find player and send message
+		var player = bot.users.get(playerId);	
+		if(!!player){
+			player.send(message);
 		} else {
-			console.log(`>> Failed to get a channel to speak in for ${channelId}!`);
+			console.log(`>> Failed to get a player for ${playerId}!`);
 		}
 	} else {
-		console.log(`>> No channel to speak in!`);
+		console.log(`>> Cannot PM player!`);
 	}
 };
 
