@@ -2,14 +2,12 @@
 
 A Discord bot for hosting a game of Den Mafia!
 
-**still under developement**  
-
-* Den Mafia's home: http://mafiamaniac.net
+* Check out [Den Mafia's home](http://mafiamaniac.net/index.php?showforum=3) for guides and information!
 
 ## Features
 
-**TODO list:**
-
+* Compatible with Discord 11+ API.
+* Only plays Scum Mafia games. **Roadmap: implement Den Mafia roster voting and rules - see [here](http://mafiamaniac.net/index.php?showtopic=685)**
 * Fully scriptable linear-flow role system with [mixins](roles/mods) for super flexible yet simple role definitions.
 * Add your own role setups using any combination of roles and mixins for any number of players.
 * Configurable role setup variations which randomly change setups to get more fun and surprise out of your setups.
@@ -33,9 +31,9 @@ $ npm install
 * Setup all the admin user ID values in `config.js`  
 * Setup the bot's user token in `creds.js` (follow the [Discord developer guide](https://discordapp.com/developers/docs/intro) to get the token)
 * Change settings in `config.js` to have a mainChannel assigned to receive debug messages
-** `defaultChannelId` id to use for debugging purposes
-** `defaultChannelName` use this name as fallback to the id above
-** `silentMode` set to false to enable debug messages to be sent to the mainChannel
+* `defaultChannelId` id to use for debugging purposes
+* `defaultChannelName` use this name as fallback to the id above
+* `silentMode` set to false to enable debug messages to be sent to the mainChannel
 
 ## Run
 
@@ -80,9 +78,8 @@ araver82: *porting to discord 11+, adding Den Mafia style*
 * `--join/in` - Join the game in this channel as a player
 * `--unjoin/out/leave` - Leave the game in this channel, if you were joined
 
-In progress (currently broken)
-* `--addroleset` - Add a roleset to the random rotation - Activated Channel Only
-* `--deleteroleset` - Delete a roleset - Admin Only - Activated Channel Only
+* **broken** `--addroleset` - Add a roleset to the random rotation - Activated Channel Only
+* **broken** `--deleteroleset` - Delete a roleset - Admin Only - Activated Channel Only
 
 ### In-Game commands - *Activated Channel Only*
 * `--confirm` - Confirm your role and your participation in the game
@@ -99,4 +96,3 @@ In progress (currently broken)
 * `--votelog` - Show a detailed log of every vote made for the game in channel
 * `--votehistory/votalhistory` - Show list of votals at the end of each previous day for the game in channel
 * `--endgame` - Current host, admin, or majority of players can end the game in this channel
-
