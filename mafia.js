@@ -20,6 +20,77 @@ const utils = require('./lib/utils.js');
 var bot = new Discord.Client();
 var data = utils.loadData();
 
+// service layer for channel/guild/user related functions
+var findUserById = (userId) => {
+        return bot.users.get(userId);
+    },
+    findHostByGame = (game) => {
+        return bot.users.get(game.hostId);
+    },
+    findRoleEveryoneInGuild = (gameChannel) => {
+        return gameChannel.guild.roles.find('name',"@everyone").id;
+    },
+    findChannelById = (channelId) => {
+        return bot.channels.get(channelId);    
+    },
+    sendPlayerRoleInfo = player => {
+        console.log(`>>INFO Sending info to player ${player.name}`);
+        var output = utils.getPlayerRoleInfo(player);
+        if(!!output){
+            bot.privateMessage(player.id, output);  
+        } else {
+            console.log(`>>WARN: no player info for player!`);
+        }
+    },
+    printCurrentPlayers = (channelId, outputChannelId, printTrueRole) => {
+        console.log(`>>INFO Current players w/o role for channel: ${channelId}`);
+        var output = utils.printCurrentPlayers(channelId, printTrueRole);
+        if(!!output){
+            bot.channelMessage(outputChannelId || channelId, output);   
+            return true;
+        } else {
+            console.log(`>>WARN: no current players!`);
+            return false;
+        }
+    },
+    printCurrentPlayersWithTrueRole = (channelId, outputChannelId) => {
+        console.log(`>>INFO Current players with true role for channel: ${channelId}`);
+        return printCurrentPlayers(channelId, outputChannelId || channelId, true);
+    },
+    printUnconfirmedPlayers = (channelId, outputChannelId) => {
+        console.log(`>>INFO Unconfirmed players for channel: ${channelId}`);
+        var output = utils.printUnconfirmedPlayers(channelId);
+        if(!!output){
+            bot.channelMessage(outputChannelId || channelId, output);   
+            return true;
+        } else {
+            console.log(`>>WARN: no unconfirmed players!`);
+            return false;
+        }
+    },
+    printDayState = (channelId, outputChannelId) => {
+        console.log(`>>INFO Daystate players for channel: ${channelId}`);
+        var output = utils.printDayState(channelId);
+        if(!!output){
+            bot.channelMessage(outputChannelId || channelId, output);   
+            return true;
+        } else {
+            console.log(`>>WARN: no day state!`);
+            return false;
+        }
+    },
+    printCurrentVotes = (channelId, outputChannelId) => {
+        console.log(`>>INFO Current votes for channel: ${channelId}`);
+        var output = utils.printCurrentVotes(channelId);
+        if(!!output){
+            bot.channelMessage(outputChannelId || channelId, output);   
+            return true;
+        } else {
+            console.log(`>>WARN: no current votes!`);
+            return false;
+        }
+    };
+
 //#1 login
 bot.login(config.token);
 
@@ -27,7 +98,7 @@ bot.login(config.token);
 bot.channelMessage = (channelId, message) => {
 	if(!!channelId){
 		//find channel and send message
-		var channel = bot.channels.get(channelId);
+		var channel = findChannelById(channelId);
 		if(!!channel){
 			channel.send(message, {split : true});
 		} else {
@@ -38,6 +109,7 @@ bot.channelMessage = (channelId, message) => {
 		console.log(`>>WARN No channel to speak in!`);
 	}
 };
+
 bot.deleteChannel = (channelId) => {
     if(!channelId){
         console.log(`>>WARN Cannot delete empty channel!`);    
@@ -45,11 +117,11 @@ bot.deleteChannel = (channelId) => {
     }
 
     //find channel and delete it
-    var channel = bot.channels.get(channelId);
+    var channel = findChannelById(channelId);
     if(!!channel){
         channel.delete()
             .then(() => {
-                var channel = bot.channels.get(channelId);
+                var channel = findChannelById(channelId);
                 if(!channel){
                     if(!config.silentMode) console.log(`>>INFO channel deleted successfully`);
                 } else {
@@ -171,10 +243,10 @@ bot.on('ready', () => {
 			
 			bot.user.setActivity(`on ${bot.guilds.size} servers (${bot.guilds.array()[0]})`);
 						
-			if(!!bot.channels.get(config.defaultChannelId)){
+			if(!!findChannelById(config.defaultChannelId)){
 				
 				console.log(`>>INFO Gonna use the testing environment ;)!`);
-				bot.mainChannel = bot.channels.get(config.defaultChannelId);
+				bot.mainChannel = findChannelById(config.defaultChannelId);
 				
 			} else if(!!bot.channels.exists(val => val.name === config.defaultChannelName)){
 				
@@ -304,7 +376,7 @@ var checkForGameOver = channelId => {
             bot.channelMessage(channelId, gameOverMessage);
             printCurrentPlayersWithTrueRole(channelId);
             
-            var mafiaChannel = bot.channels.get(gameInChannel.mafiaChannelId);
+            var mafiaChannel = findChannelById(gameInChannel.mafiaChannelId);
             bot.channelMessage(mafiaChannel.id, `**The game is over so this chat has been revealed to everyone. This is intentional!** Use *${pre}endgame* in the main chat to delete this room forever.`);
             bot.channelMessage(channelId, 
 `The roleset used was called: \`${gameInChannel.roleset}\`
@@ -329,71 +401,6 @@ Mafia chat is now open to all players!
     }
     return false;
 }
-
-//sending info
-var findUserById = (userId) => {
-        return bot.users.get(userId);
-    },
-    findHostByGame = (game) => {
-        return bot.users.get(game.hostId);
-    },
-    sendPlayerRoleInfo = player => {
-        console.log(`>>INFO Sending info to player ${player.name}`);
-		var output = utils.getPlayerRoleInfo(player);
-		if(!!output){
-			bot.privateMessage(player.id, output);	
-		} else {
-			console.log(`>>WARN: no player info for player!`);
-		}
-	},
-	printCurrentPlayers = (channelId, outputChannelId, printTrueRole) => {
-        console.log(`>>INFO Current players w/o role for channel: ${channelId}`);
-		var output = utils.printCurrentPlayers(channelId, printTrueRole);
-		if(!!output){
-			bot.channelMessage(outputChannelId || channelId, output);	
-			return true;
-		} else {
-			console.log(`>>WARN: no current players!`);
-			return false;
-		}
-	},
-	printCurrentPlayersWithTrueRole = (channelId, outputChannelId) => {
-        console.log(`>>INFO Current players with true role for channel: ${channelId}`);
-		return printCurrentPlayers(channelId, outputChannelId || channelId, true);
-	},
-	printUnconfirmedPlayers = (channelId, outputChannelId) => {
-		console.log(`>>INFO Unconfirmed players for channel: ${channelId}`);
-		var output = utils.printUnconfirmedPlayers(channelId);
-		if(!!output){
-			bot.channelMessage(outputChannelId || channelId, output);	
-			return true;
-		} else {
-			console.log(`>>WARN: no unconfirmed players!`);
-			return false;
-		}
-	},
-	printDayState = (channelId, outputChannelId) => {
-        console.log(`>>INFO Daystate players for channel: ${channelId}`);
-		var output = utils.printDayState(channelId);
-		if(!!output){
-			bot.channelMessage(outputChannelId || channelId, output);	
-			return true;
-		} else {
-			console.log(`>>WARN: no day state!`);
-			return false;
-		}
-	},
-	printCurrentVotes = (channelId, outputChannelId) => {
-        console.log(`>>INFO Current votes for channel: ${channelId}`);
-		var output = utils.printCurrentVotes(channelId);
-		if(!!output){
-			bot.channelMessage(outputChannelId || channelId, output);	
-			return true;
-		} else {
-			console.log(`>>WARN: no current votes!`);
-			return false;
-		}
-	};
 
 // commands
 var baseCommands = [
@@ -838,8 +845,8 @@ var baseCommands = [
                 bot.channelMessage(message.channel.id, `${becauseOf} ended game of mafia in <#${message.channel.id}> hosted by <@${gameInChannel.hostId}>! 😥`);
 
                 // enable talking just in case it was off
-                var gameChannel = bot.channels.get(gameInChannel.channelId);
-                var everyoneId = _.find(gameChannel.server.roles, {name: "@everyone"}).id;
+                var gameChannel = findChannelById(gameInChannel.channelId);
+                var everyoneId = findRoleEveryoneInGuild(gameChannel);
                 bot.overwritePermissions(gameChannel, everyoneId, { sendMessages: true, mentionEveryone: false });
             };
             if (gameInChannel) {
@@ -1292,8 +1299,8 @@ var mainLoop = function() {
         // make sure permissions are set properly
         currentGame.permissionsTime -= dt;
         if (currentGame.permissionsTime <= 0 || currentGame.previousState != game.state) {
-            var gameChannel = bot.channels.get(currentGame.channelId);
-            var everyoneId = gameChannel.guild.roles.find('name',"@everyone").id;
+            var gameChannel = findChannelById(currentGame.channelId);
+            var everyoneId = findRoleEveryoneInGuild(gameChannel);
 			
             if (currentGame.state != STATE.NIGHT) {
                 // everyone can talk
@@ -1321,7 +1328,7 @@ var mainLoop = function() {
             }
 			
             if (currentGame.mafiaChannelId) {
-                var mafiaChannel = bot.channels.get(currentGame.mafiaChannelId);
+                var mafiaChannel = findChannelById(currentGame.mafiaChannelId);
                 if (currentGame.state != STATE.GAMEOVER) {
                     // mafia chat blocked to all
                     bot.overwritePermissions(mafiaChannel, bot.user, { managePermissions: true }, (error) => {
