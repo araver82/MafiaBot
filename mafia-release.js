@@ -9,6 +9,7 @@ d.on('error', function(e) {
         console.log(e.stack);
 		
 		//use single channel for debugging messages
+		
 		if(!!mafiabot.mainChannel){
 			mafiabot.mainChannel.send(`***MafiaBot has encountered an error!***\n\`${e.stack.split('\n')[0]} - ${/\((.*\\)*(.*)\)/.exec(e.stack.split('\n')[1])[2]}\`\n\n**Restarting MafiaBot now... hopefully it won't happen again!**`, function() {
 				process.exit(1);

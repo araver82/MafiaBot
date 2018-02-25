@@ -20,6 +20,7 @@ module.exports = _.merge({
     ],
 	defaultChannelId: '416973662256627714',
 	defaultChannelName: 'general',
+	silentMode: true,
 	
     feedbackFilePath: 'data/feedback.txt',
     dataJSONPath: 'data/data.json',
