@@ -12,7 +12,6 @@ const ext = require('./lib/ext.js');
 
 const STATE = require('./lib/gameStates.js');
 const s = require('./lib/pluralize.js');
-const closestPlayer = require('./lib/closestPlayer.js');
 const game = require('./lib/gameLogic.js');
 const utils = require('./lib/utils.js');
 
@@ -38,6 +37,73 @@ bot.channelMessage = (channelId, message) => {
 	} else {
 		console.log(`>>WARN No channel to speak in!`);
 	}
+};
+bot.deleteChannel = (channelId) => {
+    if(!channelId){
+        console.log(`>>WARN Cannot delete empty channel!`);    
+        return;
+    }
+
+    //find channel and delete it
+    var channel = bot.channels.get(channelId);
+    if(!!channel){
+        channel.delete()
+            .then(() => {
+                var channel = bot.channels.get(channelId);
+                if(!channel){
+                    if(!config.silentMode) console.log(`>>INFO channel deleted successfully`);
+                } else {
+                    console.log(`>>WARN did not delete channel!`);
+                }
+            })
+            .catch(error => {
+                if (!!error) {
+                    console.log(`>>ERROR from API trying to delete channel: ${error.message}`);
+                } else {
+                    console.log(`>>ERROR unknown trying to delete channel!`);
+                }
+                //TODO: alert gracefully
+                //bot.channelMessage(bot.mainChannel,`Failed to delete channel!`);
+            });
+    } else {
+        console.log(`>>WARN cannot delete channel that does not exist!`);
+        return;
+    }
+};
+
+bot.createChannel = (guild, channelName, channelType, callback) => {
+    if(!channelName){
+        console.log(`>>WARN Cannot create empty channel!`);    
+        return;
+    }
+
+    if(!!guild){
+        if(!config.silentMode) console.log(`>>INFO Creating channel: ${channelName} of type ${channelType}`);
+
+        guild.createChannel(channelName, channelType)
+            .then((channel)=> {
+                if(!!channel){
+                    if(!config.silentMode) console.log(`>>INFO Channel ${channelName} created!`);
+                    if(!!callback){
+                        callback(channel);
+                    }
+                } else {
+                    console.log(`>>WARN Channel ${channelName} not created!`);
+                }
+            })
+            .catch(error => {
+                if (!!error) {
+                    console.log(`>>ERROR from API trying to create channel: ${error.message}`);
+                } else {
+                    console.log(`>>ERROR unknown trying to create channel!`);
+                }
+                //TODO: alert gracefully
+                //bot.channelMessage(bot.mainChannel,`Failed to create channel!`);
+            }); 
+    } else {
+        console.log(`>>WARN cannot create channel with no guild!`);
+        return;
+    }
 };
 
 //communication with a player
@@ -67,6 +133,7 @@ bot.reply = (message, replyMessage) =>{
 //changing permissions on channel
 bot.overwritePermissions = (channel, subject, options) => {
 	if(!!channel){
+        if(!config.silentMode) console.log(`>>INFO Trying to override permissions for ${channel.name}`);
 		channel.overwritePermissions(subject, options)
 			.then(response => {
 				if (!response) {
@@ -156,38 +223,29 @@ bot.on('ready', () => {
 
 // utilities
 var fireEvent = (event, params) => {
-    return event == null ? null : event(_.assignIn({mafiabot: mafiabot, data: data}, params));
-}
-var getPlayerFromString = (str, channelId) => {
-    var gameInChannel = _.find(data.games, {channelId: channelId});
-    if (gameInChannel) {
-        return closestPlayer(str, gameInChannel.players);
-    }
-    return null;
-}
-var getGameFromPlayer = (playerId) => {
-    return _.find(data.games, function(eachGame) { return _.find(eachGame.players, {id: playerId}); });
-}
-var adminCheck = message => {
-    if (config.admins.indexOf(message.author.id) >= 0) {
-        return true;
-    }
-    bot.reply(message, `You must be an admin to perform command *${message.content}*!`);
-    return false;
-};
-var activatedCheck = message => {
-    return data.channelsActivated.indexOf(message.channel.id) >= 0;
-};
+        return event == null ? null : event(_.assignIn({mafiabot: bot, data: data}, params));
+    },
+    adminCheck = message => {
+        if (config.admins.indexOf(message.author.id) >= 0) {
+            return true;
+        }
+        bot.reply(message, `You must be an admin to perform command *${message.content}*!`);
+        return false;
+    },
+    activatedCheck = message => {
+        return utils.isChannelActivated(message.channel.id);
+    };
+
 var endDay = (channelId, lynchTargetId) => {
-    var gameInChannel = _.find(data.games, {channelId: channelId});
+    var gameInChannel = utils.findGameById(channelId);
     if (gameInChannel) {
         bot.channelMessage(channelId, `**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n\n**!! *THERE IS NO TALKING AT NIGHT* !!**\n\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n\n`);
         if (lynchTargetId == 'NO LYNCH') {
             bot.channelMessage(channelId, `No one was lynched.`, 1000);
         } else {
             var lynchedPlayer = _.find(gameInChannel.players, {id: lynchTargetId});
-            fireEvent(getRole(lynchedPlayer.role).onLynched, {game: gameInChannel, player: lynchedPlayer});
-            bot.channelMessage(channelId, `<@${lynchedPlayer.id}>, the **${getFaction(lynchedPlayer.faction).name} ${getRole(lynchedPlayer.role).name}**, was lynched!`, 1000);
+            fireEvent(game.getRole(lynchedPlayer.role).onLynched, {game: gameInChannel, player: lynchedPlayer});
+            bot.channelMessage(channelId, `<@${lynchedPlayer.id}>, the **${getFaction(lynchedPlayer.faction).name} ${game.getRole(lynchedPlayer.role).name}**, was lynched!`, 1000);
             lynchedPlayer.alive = false;
             lynchedPlayer.deathReason = 'Lynched D' + gameInChannel.day;
         }
@@ -202,7 +260,7 @@ var endDay = (channelId, lynchTargetId) => {
             var livePlayers = _.filter(gameInChannel.players, 'alive');
             for (var i = 0; i < livePlayers.length; i++) {
                 var player = livePlayers[i];
-                fireEvent(getRole(player.role).onNight, {game: gameInChannel, player: player});
+                fireEvent(game.getRole(player.role).onNight, {game: gameInChannel, player: player});
                 printCurrentPlayers(channelId, player.id);
             }
 
@@ -224,7 +282,7 @@ Use the ***${pre}noaction*** command to confirm that you are active but taking n
 }
 
 var checkForGameOver = channelId => {
-    var gameInChannel = _.find(data.games, {channelId: channelId});
+    var gameInChannel = utils.findGameById(channelId);
     if (gameInChannel) {
         var livePlayers = _.filter(gameInChannel.players, 'alive');
         var winningFactions = {};
@@ -273,7 +331,14 @@ Mafia chat is now open to all players!
 }
 
 //sending info
-var sendPlayerRoleInfo = player => {
+var findUserById = (userId) => {
+        return bot.users.get(userId);
+    },
+    findHostByGame = (game) => {
+        return bot.users.get(game.hostId);
+    },
+    sendPlayerRoleInfo = player => {
+        console.log(`>>INFO Sending info to player ${player.name}`);
 		var output = utils.getPlayerRoleInfo(player);
 		if(!!output){
 			bot.privateMessage(player.id, output);	
@@ -282,6 +347,7 @@ var sendPlayerRoleInfo = player => {
 		}
 	},
 	printCurrentPlayers = (channelId, outputChannelId, printTrueRole) => {
+        console.log(`>>INFO Current players w/o role for channel: ${channelId}`);
 		var output = utils.printCurrentPlayers(channelId, printTrueRole);
 		if(!!output){
 			bot.channelMessage(outputChannelId || channelId, output);	
@@ -292,15 +358,14 @@ var sendPlayerRoleInfo = player => {
 		}
 	},
 	printCurrentPlayersWithTrueRole = (channelId, outputChannelId) => {
+        console.log(`>>INFO Current players with true role for channel: ${channelId}`);
 		return printCurrentPlayers(channelId, outputChannelId || channelId, true);
 	},
 	printUnconfirmedPlayers = (channelId, outputChannelId) => {
-		console.log(`>> unconfirmed ${channelId}`);
+		console.log(`>>INFO Unconfirmed players for channel: ${channelId}`);
 		var output = utils.printUnconfirmedPlayers(channelId);
 		if(!!output){
-			bot.channelMessage(outputChannelId || channelId, output, (error) => {
-				console.log(`>> log error`);
-			});	
+			bot.channelMessage(outputChannelId || channelId, output);	
 			return true;
 		} else {
 			console.log(`>>WARN: no unconfirmed players!`);
@@ -308,6 +373,7 @@ var sendPlayerRoleInfo = player => {
 		}
 	},
 	printDayState = (channelId, outputChannelId) => {
+        console.log(`>>INFO Daystate players for channel: ${channelId}`);
 		var output = utils.printDayState(channelId);
 		if(!!output){
 			bot.channelMessage(outputChannelId || channelId, output);	
@@ -318,6 +384,7 @@ var sendPlayerRoleInfo = player => {
 		}
 	},
 	printCurrentVotes = (channelId, outputChannelId) => {
+        console.log(`>>INFO Current votes for channel: ${channelId}`);
 		var output = utils.printCurrentVotes(channelId);
 		if(!!output){
 			bot.channelMessage(outputChannelId || channelId, output);	
@@ -350,11 +417,17 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: false,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
-			//TODO: find a less resource intensive way of receiving feedback
-			/*
-				var output = `## Server: ${message.channel.server ? message.channel.server.name : 'PM'} | Channel: ${message.channel.name || 'N/A'} | User: ${message.author.username} | Roleset: ${gameInChannel ? gameInChannel.roleset : 'N/A'} | ${new Date()} | ${new Date(message.createdTimestamp)} ##\n${message.content.substring(11)}\n\n`;
-            fs.appendFile(config.feedbackFilePath, output);*/
+            //TODO: find a less resource intensive way of receiving feedback
+            /*
+            var gameInChannel = utils.findGameById(message.channel.id),
+                output = `## Server: ${message.channel.server ? message.channel.server.name : 'PM'} |`;
+            output +=` Channel: ${message.channel.name || 'N/A'} | User: ${message.author.username} |`;
+            output +=` Roleset: ${gameInChannel ? gameInChannel.roleset : 'N/A'} | ${new Date()} |`;
+            output +=` When: ${new Date(message.createdTimestamp)} ##\n`;
+            output +=`${message.content.substring(11)}\n\n`;
+
+            fs.appendFile(config.feedbackFilePath, output);
+            */
 			
             bot.reply(message, `Thanks for the feedback! ❤`);
         },
@@ -414,7 +487,7 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var signalsForServer = _.find(data.signals, {serverId: message.channel.guild.id});
+            var signalsForServer = utils.findSignalsByServerId(message.channel.guild.id);
             if (signalsForServer && signalsForServer.playerIds.length) {
                 bot.channelMessage(message.channel.id, `**HEY! Let's play some MAFIA!** (use the *${pre}joinsignal* command to join this list)\n${signalsForServer.playerIds.map((id) => `<@${id}>`).join(' ')}`);
             } else {
@@ -428,7 +501,7 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var signalsForServer = _.find(data.signals, {serverId: message.channel.guild.id});
+            var signalsForServer = utils.findSignalsByServerId(message.channel.guild.id);
             if (!signalsForServer) {
                 signalsForServer = {
                     serverId: message.channel.guild.id,
@@ -451,7 +524,7 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var signalsForServer = _.find(data.signals, {serverId: message.channel.guild.id});
+            var signalsForServer = utils.findSignalsByServerId(message.channel.guild.id);
             if (signalsForServer) {
                 var prevLength = signalsForServer.playerIds.length;
                 _.pull(signalsForServer.playerIds, message.author.id);
@@ -585,7 +658,7 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
                 bot.channelMessage(message.channel.id, `Host of current game in channel:\n<@${gameInChannel.hostId}>`);
             } else {
@@ -599,7 +672,7 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
                 var printPlayersFunc = gameInChannel.state === STATE.GAMEOVER ? printCurrentPlayersWithTrueRole : printCurrentPlayers;
                 printPlayersFunc(message.channel.id);
@@ -614,9 +687,9 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
-                var player = _.find(gameInChannel.players, {id: message.author.id});
+                var player = utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id);
                 if (player) {
                     sendPlayerRoleInfo(player);
                 }
@@ -653,14 +726,14 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
                 if (gameInChannel.voteHistory.length) {
                     var output = ``;
                     for (var i = 0; i < gameInChannel.voteHistory.length; i++) {
                         var voteHistory = gameInChannel.voteHistory[i];
                         output += `***Day ${voteHistory.day}:*** `;
-                        output += listVotes(voteHistory.votes, message.channel.id);
+                        output += utils.listVotes(voteHistory.votes, message.channel.id);
                         if (i != gameInChannel.voteHistory.length - 1) {
                             output += `\n\n`;
                         }
@@ -680,7 +753,7 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
                 if (gameInChannel.voteLog.length > 1) {
                     var output = ``;
@@ -721,7 +794,7 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
                 bot.reply(message, `A game is already running in <#${message.channel.id}> hosted by <@${gameInChannel.hostId}>!`);
             } else {
@@ -758,7 +831,7 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             var endGame = becauseOf => {
                 _.remove(data.games, gameInChannel);
                 bot.deleteChannel(gameInChannel.mafiaChannelId);
@@ -774,7 +847,7 @@ var baseCommands = [
                     endGame(`Host <@${message.author.id}>`);
                 } else if (config.admins.indexOf(message.author.id) >= 0) {
                     endGame(`Admin <@${message.author.id}>`);
-                } else if (_.find(gameInChannel.players, {id: message.author.id})) {
+                } else if (!!utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id)) {
                     if (gameInChannel.votesToEndGame.indexOf(message.author.id) >= 0) {
                         bot.reply(message, `We already know you want to end the current game hosted by <@${gameInChannel.hostId}>!`);
                     } else {
@@ -802,55 +875,61 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: (message, args) => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
                 if (gameInChannel.hostId == message.author.id) {
                     if (gameInChannel.state == STATE.INIT) {
                         // see if there are any available rolesets for this number of players
-                        var possibleRolesets = _.filter(game.getRolesets(), set => set.roles.length == gameInChannel.players.length);
+                        var possibleRolesets = game.getPossibleRolesets(gameInChannel.players.length);
+
                         if (possibleRolesets.length) {
                             // if there was a roleset passed in, use that
                             if (args[1]) {
                                 possibleRolesets = _.filter(possibleRolesets, set => set.name === args[1]);
                             }
+
                             if (possibleRolesets.length) {
-                                bot.createChannel(message.channel, 'mafia' + Math.random().toString().substring(2), 'text', (error, mafiaChannel) => {
-                                    if (mafiaChannel) {
+                                bot.createChannel(message.guild, 'mafia' + Math.random().toString().substring(2), 'text', 
+                                    (mafiaChannel) => {
+                                    if (!!mafiaChannel) {
                                         gameInChannel.state = STATE.CONFIRMING;
                                         gameInChannel.mafiaChannelId = mafiaChannel.id;
                                         gameInChannel.confirmingReminderTime = config.confirmingReminderInterval;
+
                                         bot.channelMessage(message.channel.id, `Sending out roles for game of mafia hosted by <@${gameInChannel.hostId}>! Check your PMs for info and type **${pre}confirm** in this channel to confirm your role.`);
                                         printCurrentPlayers(message.channel.id);
 
-                                        // pick a random available roleset
-                                        var roleset = possibleRolesets[Math.floor(Math.random()*possibleRolesets.length)];
-                                        // mutate it
-                                        for (var i = 0; i < variations.length; i++) {
-                                            if (variations.canMutate(roleset, variations[i]) && Math.random() < 0.25) {
-                                                roleset = variations.mutate(roleset, variations[i]);
-                                            }
-                                        }
+                                        var roleset = game.pickRoleSet(possibleRolesets);
                                         gameInChannel.roleset = roleset.name;
-                                        console.log('Picking roleset:', roleset.name);
+
+                                        console.log(`>>INFO Picking roleset: ${roleset.name}`);
                                         // randomly assign and send roles
                                         var shuffledRoles = _.shuffle(roleset.roles);
                                         for (var i = 0; i < gameInChannel.players.length; i++) {
                                             var player = gameInChannel.players[i];
                                             player.faction = shuffledRoles[i].faction;
                                             player.role = shuffledRoles[i].role;
-                                            console.log('    ', player.name, player.faction, player.role);
+                                            console.log(`>>INFO Role ${i+1}: ${player.name} as ${player.faction} with ${player.role}`);
                                         }
+                                        console.log(`>>INFO Finishing shuffling roles!`);
+
+                                        console.log(`>>INFO Sending roles to players!`);
                                         for (var i = 0; i < gameInChannel.players.length; i++) {
                                             var player = gameInChannel.players[i];
                                             sendPlayerRoleInfo(player);
                                             bot.privateMessage(player.id, `Type **${pre}confirm** in <#${message.channel.id}> to confirm your participation in the game of mafia hosted by <@${gameInChannel.hostId}>.`);
                                         }
+
+                                        console.log(`>>INFO Sending roles to BTSC players!`);
                                         // then send mafia messages
                                         var mafiaPlayers = _.filter(gameInChannel.players, {faction: 'mafia'});
                                         for (var i = 0; i < mafiaPlayers.length; i++) {
-                                            var mafiaPlayer = _.find(bot.users, {id: mafiaPlayers[i].id});
+                                            var mafiaPlayer = findUserById(mafiaPlayers[i].id);
+                                            console.log('>>INFO Sending message to ${mafiaPlayer.name}');
                                             bot.privateMessage(mafiaPlayer, `Use the channel <#${mafiaChannel.id}> to chat with your fellow Mafia team members, and to send in your nightly kill.`);
                                         }
+
+                                        console.log(`>>INFO Printing BTSC info!`);
                                         bot.channelMessage(mafiaChannel.id, `**Welcome to the mafia team!**\nYour team is:${utils.listUsers(_.map(mafiaPlayers, 'id'))}`);
                                         bot.channelMessage(mafiaChannel.id, `As a team you have **1 kill each night**. Use the ***${pre}kill*** command (ex: *${pre}kill fool*) to use that ability when I prompt you in this chat.`);
                                     }
@@ -869,7 +948,7 @@ var baseCommands = [
                         var livePlayers = _.filter(gameInChannel.players, 'alive');
                         for (var i = 0; i < livePlayers.length; i++) {
                             var player = livePlayers[i];
-                            fireEvent(getRole(player.role).onGameStart, {game: gameInChannel, player: player});
+                            fireEvent(game.getRole(player.role).onGameStart, {game: gameInChannel, player: player});
                         }
                         bot.channelMessage(message.channel.id, `All players have confirmed and host <@${gameInChannel.hostId}> is now starting the game of mafia!`);
                         printCurrentPlayers(message.channel.id);
@@ -889,12 +968,12 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
                 if (gameInChannel.state == STATE.INIT) {
-                    if (!_.find(data.pmChannels, {playerId: message.author.id})) {
+                    if (!utils.findPMChannelForPlayerId(message.author.id)) {
                         bot.reply(message, `You need to send me a private message to open up a direct channel of communication between us before you can join a game!`);
-                    } else if (_.find(gameInChannel.players, {id: message.author.id})) {
+                    } else if (!!utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id)) {
                         bot.reply(message, `You are already in the current game hosted by <@${gameInChannel.hostId}>!`);
                     } else {
                         var newPlayer = {
@@ -925,10 +1004,10 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: message => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel) {
                 if (gameInChannel.state == STATE.INIT) {
-                    if (_.find(gameInChannel.players, {id: message.author.id})) {
+                    if (!!utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id)) {
                         _.pullAllBy(gameInChannel.players, [{id: message.author.id}], 'id');
                         bot.channelMessage(message.channel.id, `<@${message.author.id}> left the current game hosted by <@${gameInChannel.hostId}>!`);
                         printCurrentPlayers(message.channel.id);
@@ -949,12 +1028,12 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: (message, args) => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel && gameInChannel.state == STATE.CONFIRMING) {
-                var player = _.find(gameInChannel.players, {id: message.author.id});
+                var player = utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id);
                 if (player) {
                     player.confirmed = true;
-                    bot.syncReply(message, `Thanks for confirming for the current game hosted by <@${gameInChannel.hostId}>!`);
+                    bot.reply(message, `Thanks for confirming for the current game hosted by <@${gameInChannel.hostId}>!`);
 
                     var unconfirmedPlayers = _.filter(gameInChannel.players, {confirmed: false});
                     if (!unconfirmedPlayers.length) {
@@ -972,9 +1051,9 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: (message, args) => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel && gameInChannel.state == STATE.DAY) {
-                var player = _.find(gameInChannel.players, {id: message.author.id});
+                var player = utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id);
                 if (player && player.alive) {
                     var target = getPlayerFromString(args[1], message.channel.id);
                     if (target) {
@@ -1004,9 +1083,9 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: (message, args) => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel && gameInChannel.state == STATE.DAY) {
-                var player = _.find(gameInChannel.players, {id: message.author.id});
+                var player = utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id);
                 if (player && player.alive) {
                     _.pullAllBy(gameInChannel.votes, [{playerId: message.author.id}], 'playerId');
                     gameInChannel.votes.push({playerId: message.author.id, targetId: 'NO LYNCH', time: new Date()});
@@ -1025,9 +1104,9 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: (message, args) => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel && gameInChannel.state == STATE.DAY) {
-                var player = _.find(gameInChannel.players, {id: message.author.id});
+                var player = utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id);
                 if (player && player.alive) {
                     var vote = _.find(gameInChannel.votes, {playerId: message.author.id});
                     _.pullAllBy(gameInChannel.votes, [{playerId: message.author.id}], 'playerId');
@@ -1045,9 +1124,9 @@ var baseCommands = [
         adminOnly: false,
         activatedOnly: true,
         onMessage: (message, args) => {
-            var gameInChannel = _.find(data.games, {channelId: message.channel.id});
+            var gameInChannel = utils.findGameById(message.channel.id);
             if (gameInChannel && gameInChannel.state == STATE.DAY) {
-                var player = _.find(gameInChannel.players, {id: message.author.id});
+                var player = utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id);
                 if (player && player.alive) {
                     if (gameInChannel.votesToExtend.indexOf(player.id) >= 0) {
                         bot.reply(message, `We already know you want to extend the day!`);
@@ -1133,15 +1212,15 @@ bot.on('message', async message => {
     // receiving a PM
     if (message.channel.recipient) {
         // pm channel setup
-        if (!_.find(data.pmChannels, {playerId: message.channel.recipient.id})) {
+        if (!utils.findPMChannelForPlayerId(message.channel.recipient.id)) {
             data.pmChannels.push({playerId: message.channel.recipient.id, channelId: message.channel.id});
             bot.reply(message, 'Thanks for the one-time private message to open a direct channel of communication between us! You can now join and play mafia games on this server.');
         }
         
-        var gameWithPlayer = getGameFromPlayer(message.author.id);
+        var gameWithPlayer = utils.findGameByPlayerId(message.author.id);
         if (gameWithPlayer) {
-            var player = _.find(gameWithPlayer.players, {id: message.author.id});
-            var role = getRole(player.role);
+            var player = utils.findPlayerByGameAndPlayerId(gameWithPlayer, message.author.id);
+            var role = game.getRole(player.role);
             if (contentLower.indexOf(pre) == 0) {
                 fireEvent(role.onPMCommand, {message: message, args: args, game: gameWithPlayer, player: player});
             }
@@ -1152,11 +1231,11 @@ bot.on('message', async message => {
     var game = _.find(data.games, {mafiaChannelId: message.channel.id});
     if (game && contentLower.indexOf(pre) == 0) {
         // terrible chunk of code to emulate a vig kill
-        var player = _.find(game.players, {id: message.author.id});
+        var player = utils.findPlayerName(gameInChannel, message.author.id);
         var actionText = 'mafia kill';
         if (game.state == STATE.NIGHT && player && player.alive) {
             if (args[0].toLowerCase() == 'kill') {
-                var target = closestPlayer(args[1], game.players);
+                var target = utils.findClosestPlayerNameInGame(args[1], game);
                 if (target && target.alive) {
                     game.nightActions = _.reject(game.nightActions, {action: actionText}); // clear any mafia kill, not just the current player's
                     game.nightActions.push({ 
@@ -1166,7 +1245,7 @@ bot.on('message', async message => {
                     });
                     game.mafiaDidNightAction = true;
                     // make sure not to ping non-mafia players in the mafia chat
-                    bot.reply(message, `**You are killing *${_.find(game.players, {id: target.id}).name}* tonight!** Type ***${pre}cancel*** to cancel.`);
+                    bot.reply(message, `**You are killing *${utils.findPlayerNameByGameAndPlayerId(game, target.id)}* tonight!** Type ***${pre}cancel*** to cancel.`);
                 } else {
                     bot.reply(message, `*${args[1]}* is not a valid target!`);
                 }
@@ -1174,7 +1253,7 @@ bot.on('message', async message => {
                 var action = _.find(game.nightActions, {action: actionText});
                 if (action) {
                     game.mafiaDidNightAction = false;
-                    bot.reply(message, `**You have canceled killing *${_.find(game.players, {id: action.targetId}).name}*.**`);
+                    bot.reply(message, `**You have canceled killing *${utils.findPlayerNameByGameAndPlayerId(game, action.targetId)}*.**`);
                 }
                 game.nightActions = _.reject(game.nightActions, {action: actionText});
                 if (args[0].toLowerCase() == 'noaction') {
@@ -1207,16 +1286,16 @@ var mainLoop = function() {
 
     // game-specific loops
     for (var i = 0; i < data.games.length; i++) {
-        var game = data.games[i];
-        bot.latestChannel = game.channelId; // for error handling purposes
+        var currentGame = data.games[i];
+        bot.latestChannel = currentGame.channelId; // for error handling purposes
 
         // make sure permissions are set properly
-        game.permissionsTime -= dt;
-        if (game.permissionsTime <= 0 || game.previousState != game.state) {
-            var gameChannel = bot.channels.get(game.channelId);
+        currentGame.permissionsTime -= dt;
+        if (currentGame.permissionsTime <= 0 || currentGame.previousState != game.state) {
+            var gameChannel = bot.channels.get(currentGame.channelId);
             var everyoneId = gameChannel.guild.roles.find('name',"@everyone").id;
 			
-            if (game.state != STATE.NIGHT) {
+            if (currentGame.state != STATE.NIGHT) {
                 // everyone can talk
 				if(!config.silentMode) {
 					console.log(`>>DEBUG Permissions overwrite for everyone: ${everyoneId}`);
@@ -1233,7 +1312,7 @@ var mainLoop = function() {
                     }
                 });
                 // host can talk
-                var host = bot.users.get(game.hostId);
+                var host = findHostByGame(currentGame);
 				bot.overwritePermissions(gameChannel, host, { sendMessages: true }, (error) => {
                     if (!error) {
                         console.log(`>> Can't touch host`);
@@ -1241,9 +1320,9 @@ var mainLoop = function() {
                 });
             }
 			
-            if (game.mafiaChannelId) {
-                var mafiaChannel = bot.channels.get(game.mafiaChannelId);
-                if (game.state != STATE.GAMEOVER) {
+            if (currentGame.mafiaChannelId) {
+                var mafiaChannel = bot.channels.get(currentGame.mafiaChannelId);
+                if (currentGame.state != STATE.GAMEOVER) {
                     // mafia chat blocked to all
                     bot.overwritePermissions(mafiaChannel, bot.user, { managePermissions: true }, (error) => {
                         if (!error) {
@@ -1251,170 +1330,170 @@ var mainLoop = function() {
                         }
                     });
                     // mafia players can chat in mafia chat
-                    var mafiaPlayers = _.filter(game.players, {faction: 'mafia'});
+                    var mafiaPlayers = _.filter(currentGame.players, {faction: 'mafia'});
                     bot.overwritePermissions(mafiaChannel, bot.user, { managePermissions: true }, (error) => {
                         for (var i = 0; i < mafiaPlayers.length; i++) {
-                            var mafiaPlayer = _.find(bot.users, {id: mafiaPlayers[i].id});
+                            var mafiaPlayer = findUserById(mafiaPlayers[i].id);
                             bot.overwritePermissions(mafiaChannel, mafiaPlayer, { readMessages: true, sendMessages: true });
                         }
                     });
                 } else {
                     // mafia open to all players
-                    for (var i = 0; i < game.players.length; i++) {
-                        var player = _.find(bot.users, {id: game.players[i].id});
+                    for (var i = 0; i < currentGame.players.length; i++) {
+                        var player = findUserById(currentGame.players[i].id);
                         bot.overwritePermissions(mafiaChannel, player, { readMessages: true, sendMessages: true });
                     }
                 }
             }
-            game.permissionsTime = config.permissionsInterval;
+            currentGame.permissionsTime = config.permissionsInterval;
         }
 
         // state-based stuff
 
-        if (game.state == STATE.CONFIRMING) {
+        if (currentGame.state == STATE.CONFIRMING) {
             // send confirming action reminders
-            game.confirmingReminderTime -= dt;
+            currentGame.confirmingReminderTime -= dt;
 			console.log(`>>DEBUG State: CONFIRMING ...`);
-            if (game.confirmingReminderTime <= 0) {
-                printUnconfirmedPlayers(game.channelId);
-                game.confirmingReminderTime = config.confirmingReminderInterval;
+            if (currentGame.confirmingReminderTime <= 0) {
+                printUnconfirmedPlayers(currentGame.channelId);
+                currentGame.confirmingReminderTime = config.confirmingReminderInterval;
             }
         }
 
-        if (game.state == STATE.DAY) {
+        if (currentGame.state == STATE.DAY) {
             // count down to no lynch
-            game.timeLimit -= dt;
+            currentGame.timeLimit -= dt;
 			console.log(`>>DEBUG State: DAY ...`);
-            if (game.timeLimit <= 0) {
-                printCurrentVotes(game.channelId);
-                endDay(game.channelId, 'NO LYNCH');
+            if (currentGame.timeLimit <= 0) {
+                printCurrentVotes(currentGame.channelId);
+                endDay(currentGame.channelId, 'NO LYNCH');
             } else {
-                var prevMinute = Math.floor((game.timeLimit + dt)/(1000*60));
-                var currMinute = Math.floor(game.timeLimit/(1000*60));
-                if (game.timeLimit <= config.dayTimeLimitWarning && prevMinute != currMinute) {
-					bot.channelMessage(game.channelId, `**WARNING:** Only ***${s(currMinute + 1, 'minute')}*** left until an automatic **No Lynch**! Use ***${pre}extend*** to vote for a ${Math.floor(config.dayTimeLimitExtension/(60*1000))}-minute time limit extension.`);
+                var prevMinute = Math.floor((currentGame.timeLimit + dt)/(1000*60));
+                var currMinute = Math.floor(currentGame.timeLimit/(1000*60));
+                if (currentGame.timeLimit <= config.dayTimeLimitWarning && prevMinute != currMinute) {
+					bot.channelMessage(currentGame.channelId, `**WARNING:** Only ***${s(currMinute + 1, 'minute')}*** left until an automatic **No Lynch**! Use ***${pre}extend*** to vote for a ${Math.floor(config.dayTimeLimitExtension/(60*1000))}-minute time limit extension.`);
 				}
             }
         }
 
-        if (game.state == STATE.NIGHT) {
+        if (currentGame.state == STATE.NIGHT) {
 			console.log(`>>DEBUG State: NIGHT ...`);
-            var livePlayers = _.filter(game.players, 'alive');
+            var livePlayers = _.filter(currentGame.players, 'alive');
 
             // check if all townies and the mafia chat have finished night actions and if so, start the day countdown
             var allNightActionsFinished = _.every(livePlayers, (player) => {
-                var result = fireEvent(getRole(player.role).isFinished, {game: game, player: player});
+                var result = fireEvent(game.getRole(player.role).isFinished, {game: game, player: player});
                 return result === null || result === true;
             });
-            allNightActionsFinished = allNightActionsFinished && game.mafiaDidNightAction;
+            allNightActionsFinished = allNightActionsFinished && currentGame.mafiaDidNightAction;
             if (allNightActionsFinished) {
-                game.timeToNightActionResolution -= dt;
-                console.log('Time to day:', game.timeToNightActionResolution);
+                currentGame.timeToNightActionResolution -= dt;
+                console.log('Time to day:', currentGame.timeToNightActionResolution);
             } else {
-                game.timeToNightActionResolution = config.nightActionBufferTime * (1 + Math.random()/2);
+                currentGame.timeToNightActionResolution = config.nightActionBufferTime * (1 + Math.random()/2);
             }
             
             // count down to forcing night action resolution
-            game.timeLimit -= dt;
-            if (game.timeLimit <= 0) {
+            currentGame.timeLimit -= dt;
+            if (currentGame.timeLimit <= 0) {
                 for (var i = 0; i < livePlayers.length; i++) {
                     var player = livePlayers[i];
-                    fireEvent(getRole(player.role).onForceNightAction, {game: game, player: player});
+                    fireEvent(game.getRole(player.role).onForceNightAction, {game: currentGame, player: player});
                 }
-                if (!game.mafiaDidNightAction) {
-                    bot.channelMessage(game.mafiaChannelId, `**The night action time limit ran out and you were forced to no action!** Hurry up next time...`);
+                if (!currentGame.mafiaDidNightAction) {
+                    bot.channelMessage(currentGame.mafiaChannelId, `**The night action time limit ran out and you were forced to no action!** Hurry up next time...`);
                 }
-                game.timeToNightActionResolution = 0;
+                currentGame.timeToNightActionResolution = 0;
             }
 
             // resolve night actions and begin day after countdown
-            if (game.timeToNightActionResolution <= 0) {
+            if (currentGame.timeToNightActionResolution <= 0) {
                 for (var i = 0; i < livePlayers.length; i++) {
                     var player = livePlayers[i];
-                    fireEvent(getRole(player.role).preBlockingPhase, {game: game, player: player});
+                    fireEvent(game.getRole(player.role).preBlockingPhase, {game: currentGame, player: player});
                 }
                 for (var i = 0; i < livePlayers.length; i++) {
                     var player = livePlayers[i];
-                    fireEvent(getRole(player.role).onBlockTargetingPhase, {game: game, player: player});
+                    fireEvent(game.getRole(player.role).onBlockTargetingPhase, {game: currentGame, player: player});
                 }
                 for (var i = 0; i < livePlayers.length; i++) {
                     var player = livePlayers[i];
-                    fireEvent(getRole(player.role).onTargetingPhase, {game: game, player: player});
+                    fireEvent(game.getRole(player.role).onTargetingPhase, {game: currentGame, player: player});
                 }
                 for (var i = 0; i < livePlayers.length; i++) {
                     var player = livePlayers[i];
-                    fireEvent(getRole(player.role).onBlockingPhase, {game: game, player: player});
+                    fireEvent(game.getRole(player.role).onBlockingPhase, {game: currentGame, player: player});
                 }
                 for (var i = 0; i < livePlayers.length; i++) {
                     var player = livePlayers[i];
-                    fireEvent(getRole(player.role).onActionPhase, {game: game, player: player});
+                    fireEvent(game.getRole(player.role).onActionPhase, {game: currentGame, player: player});
                 }
                 // just do the mafia kill action here, why not
-                var mafiaAction = _.find(game.nightActions, {action: 'mafia kill'});
+                var mafiaAction = _.find(currentGame.nightActions, {action: 'mafia kill'});
                 if (mafiaAction) {
-                    game.nightKills[mafiaAction.targetId] = (game.nightKills[mafiaAction.targetId] || 0) + bulletKill;
+                    currentGame.nightKills[mafiaAction.targetId] = (currentGame.nightKills[mafiaAction.targetId] || 0) + bulletKill;
                 }
                 for (var i = 0; i < livePlayers.length; i++) {
                     var player = livePlayers[i];
-                    fireEvent(getRole(player.role).onNightResolved, {game: game, player: player});
+                    fireEvent(game.getRole(player.role).onNightResolved, {game: currentGame, player: player});
                 }
                 // figure out who died
                 var deadPlayers = [];
-                for (var playerId in game.nightKills) {
-                    if (game.nightKills[playerId] > 0) {
-                        var deadPlayer = _.find(game.players, {id: playerId});
-                        var bulletproofBlocked = game.nightKills[playerId] % bulletKill === 0 && getRole(deadPlayer.role).bulletproof;
+                for (var playerId in currentGame.nightKills) {
+                    if (currentGame.nightKills[playerId] > 0) {
+                        var deadPlayer = utils.findPlayerName(currentGame, playerId),
+                            bulletproofBlocked = currentGame.nightKills[playerId] % bulletKill === 0 && game.getRole(deadPlayer.role).bulletproof;
                         if (!bulletproofBlocked) {
                             deadPlayer.alive = false;
-                            deadPlayer.deathReason = 'Died N' + game.day;
+                            deadPlayer.deathReason = 'Died N' + currentGame.day;
                             deadPlayers.push(deadPlayer);
                         }
                     }
                 }
                 // start day
-                game.state = STATE.DAY;
-                game.day++;
-                game.votes.length = 0;
-                game.voteLog.push({day: game.day});
-                game.nightActions.length = 0;
-                game.nightKills = {};
-                game.timeLimit = config.dayTimeLimit;
-                bot.channelMessage(game.channelId, `**All players have finished night actions!**`);
-                bot.channelMessage(game.channelId, `***${s(deadPlayers.length, 'player', 's have', ' has')} died.***`, 1000);
+                currentGame.state = STATE.DAY;
+                currentGame.day++;
+                currentGame.votes.length = 0;
+                currentGame.voteLog.push({day: currentGame.day});
+                currentGame.nightActions.length = 0;
+                currentGame.nightKills = {};
+                currentGame.timeLimit = config.dayTimeLimit;
+                bot.channelMessage(currentGame.channelId, `**All players have finished night actions!**`);
+                bot.channelMessage(currentGame.channelId, `***${s(deadPlayers.length, 'player', 's have', ' has')} died.***`, 1000);
                 for (var i = 0; i < deadPlayers.length; i++) {
                     var deadPlayer = deadPlayers[i];
-                    bot.channelMessage(game.channelId, `<@${deadPlayer.id}>, the **${getFaction(deadPlayer.faction).name} ${getRole(deadPlayer.role).name}**, has died!`, 1000);
+                    bot.channelMessage(game.channelId, `<@${deadPlayer.id}>, the **${getFaction(deadPlayer.faction).name} ${game.getRole(deadPlayer.role).name}**, has died!`, 1000);
                 }
-                if (!checkForGameOver(game.channelId)) {
-                    bot.channelMessage(game.channelId, `Day ${game.day} is now starting.`, 2000);
-                    printCurrentPlayers(game.channelId);
-                    printDayState(game.channelId);
+                if (!checkForGameOver(currentGame.channelId)) {
+                    bot.channelMessage(currentGame.channelId, `Day ${currentGame.day} is now starting.`, 2000);
+                    printCurrentPlayers(currentGame.channelId);
+                    printDayState(currentGame.channelId);
                 }
             }
 
             // send night action reminders
-            game.nightActionReminderTime -= dt;
-            if (game.nightActionReminderTime <= 0) {
+            currentGame.nightActionReminderTime -= dt;
+            if (currentGame.nightActionReminderTime <= 0) {
                 var remind = (playerName, channelId) => {
                     console.log('Reminding:', playerName);
-                    bot.channelMessage(channelId, `**HEY! *LISTEN!!*** You have ${s(Math.floor(game.timeLimit/(60*1000)), 'minute')} to register a night action before night ends! Remember to use the ***${pre}noaction*** command to confirm you are active, even if you have no night power!`);
+                    bot.channelMessage(channelId, `**HEY! *LISTEN!!*** You have ${s(Math.floor(currentGame.timeLimit/(60*1000)), 'minute')} to register a night action before night ends! Remember to use the ***${pre}noaction*** command to confirm you are active, even if you have no night power!`);
                 }
                 for (var i = 0; i < livePlayers.length; i++) {
                     var player = livePlayers[i];
-                    var result = fireEvent(getRole(player.role).isFinished, {game: game, player: player});
+                    var result = fireEvent(game.getRole(player.role).isFinished, {game: currentGame, player: player});
                     if (!(result === null || result === true)) {
                         remind(player.name, player.id);
                     }
                 }
-                if (!game.mafiaDidNightAction) {
+                if (!currentGame.mafiaDidNightAction) {
                     remind('mafia', game.mafiaChannelId);
                 }
-                game.nightActionReminderTime = config.nightActionReminderInterval;
+                currentGame.nightActionReminderTime = config.nightActionReminderInterval;
             }
         }
 
         // for detecting when there is a state change
-        game.previousState = game.state;
+        currentGame.previousState = currentGame.state;
     }
 
     // save and wait for next loop

@@ -1,4 +1,5 @@
 global.RELEASE = true;
+const config = require('./config.js');
 var d = require('domain').create()
 process.on('unhandledRejection', (reason) => {
     console.trace('Reason: ' + reason);
@@ -9,9 +10,9 @@ d.on('error', function(e) {
         console.log(e.stack);
 		
 		//use single channel for debugging messages
-		
-		if(!!mafiabot.mainChannel){
-			mafiabot.mainChannel.send(`***MafiaBot has encountered an error!***\n\`${e.stack.split('\n')[0]} - ${/\((.*\\)*(.*)\)/.exec(e.stack.split('\n')[1])[2]}\`\n\n**Restarting MafiaBot now... hopefully it won't happen again!**`, function() {
+		if(!!mafiabot.mainChannel && !config.silentMode){
+			mafiabot.mainChannel.send(`***MafiaBot has encountered an error!***\n\`${e.stack.split('\n')[0]} - ${/\((.*\\)*(.*)\)/.exec(e.stack.split('\n')[1])[2]}\`\n\n**Restarting MafiaBot now... hopefully it won't happen again!**`, 
+				function() {
 				process.exit(1);
 			});
 		}
