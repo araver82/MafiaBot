@@ -77,8 +77,8 @@ araver82: *porting to discord 11+, adding Den Mafia style*
 * `--creategame` - Create a game in this channel and become the host
 * `--startgame` - Host can start game with current list of players, optionally specifying the name of a roleset to use.
 * `--host/hosts` - Show host of current game in channel
-* `--join/in` - Join the game in this channel as a player - Activated Channel Only
-* `--unjoin/out/leave` - Leave the game in this channel, if you were joined - Activated Channel Only
+* `--join/in` - Join the game in this channel as a player
+* `--unjoin/out/leave` - Leave the game in this channel, if you were joined
 
 In progress (currently broken)
 * `--addroleset` - Add a roleset to the random rotation - Activated Channel Only
@@ -87,17 +87,16 @@ In progress (currently broken)
 ### In-Game commands - *Activated Channel Only*
 * `--confirm` - Confirm your role and your participation in the game
 
-In progress (currently broken)
-* `--player/players/playerlist` - Show current list of players of game in channel - Activated Channel Only
-* `--myrole` - Sends you a PM of your role info again - Activated Channel Only
-* `--day/info` - Show current day information - Activated Channel Only
-* `--votes/votals` - Show current list of votes for the game in channel - Activated Channel Only
-* `--votehistory/votalhistory` - Show list of votals at the end of each previous day for the game in channel - Activated Channel Only
-* `--votelog` - Show a detailed log of every vote made for the game in channel - Activated Channel Only
+* `--vote/lynch` - Vote to lynch a player
+* `--nl/nolynch/abstain` - Vote for no lynch today
+* `--unvote/unlynch/un` - Remove your vote to lynch a player
+* `--extend` - Vote to extend the day time limit by 5 minutes
 
-* `--endgame` - Current host, admin, or majority of players can end the game in this channel - Activated Channel Only
+* `--player/players/playerlist` - Show current list of players of game in channel
+* `--myrole` - Sends you a PM of your role info again
+* `--day/info` - Show current day information
+* `--votes/votals` - Show current list of votes for the game in channel
+* `--votelog` - Show a detailed log of every vote made for the game in channel
+* `--votehistory/votalhistory` - Show list of votals at the end of each previous day for the game in channel
+* `--endgame` - Current host, admin, or majority of players can end the game in this channel
 
-* `--vote/lynch` - Vote to lynch a player - Activated Channel Only
-* `--nl/nolynch` - Vote for no lynch today - Activated Channel Only
-* `--unvote/unlynch/un` - Remove your vote to lynch a player - Activated Channel Only
-* `--extend` - Vote to extend the day time limit by 5 minutes - Activated Channel Only

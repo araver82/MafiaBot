@@ -204,29 +204,37 @@ bot.reply = (message, replyMessage) =>{
 
 //changing permissions on channel
 bot.overwritePermissions = (channel, subject, options) => {
-	if(!!channel){
-        if(!config.silentMode) console.log(`>>INFO Trying to override permissions for ${channel.name}`);
-		channel.overwritePermissions(subject, options)
-			.then(response => {
-				if (!response) {
-					console.log(`>>ERROR Can't touch permissions for some role`);
-				} else {
-					//console.log(`>>DEBUG Channel now has ${response.permissionOverwrites.size} permission overwrites!`);
-					//console.dir(response.permissionOverwrites);
-				}
-			})
-			.catch(error => {
-				if (!!error) {
-					console.log(`>>ERROR from API trying to change permissions: ${error.message}`);
-				} else {
-					console.log(`>>ERROR unknown trying to change permissions`);
-				}
-				//TODO: alert gracefully
-				//bot.channelMessage(bot.mainChannel,`Failed to overwrite permissions!`);
-			});		
-	} else {
-		console.log(`>>WARN unknown channel when trying to change permissions`);
-	}
+    //test that channel exists before trying anything ;)
+    if(!channel || !channel.id){
+        return;//silent
+    }
+
+    //if(!config.silentMode) 
+    console.log(`>>INFO Trying to override permissions for ${channel.name}`);
+
+    var channelExists = bot.channels.get(channel.id);
+    if(!channelExists){
+        return;//silent
+    }
+
+	channelExists.overwritePermissions(subject, options)
+		.then(response => {
+			if (!response) {
+				console.log(`>>ERROR Can't touch permissions for some role`);
+			} else {
+				//console.log(`>>DEBUG Channel now has ${response.permissionOverwrites.size} permission overwrites!`);
+				//console.dir(response.permissionOverwrites);
+			}
+		})
+		.catch(error => {
+			if (!!error) {
+				console.log(`>>ERROR from API trying to change permissions: ${error.message}`);
+			} else {
+				console.log(`>>ERROR unknown trying to change permissions`);
+			}
+			//TODO: alert gracefully
+			//bot.channelMessage(bot.mainChannel,`Failed to overwrite permissions!`);
+		});
 };
 
 //#2 get mainChannel on ready
@@ -317,7 +325,7 @@ var endDay = (channelId, lynchTargetId) => {
         } else {
             var lynchedPlayer = _.find(gameInChannel.players, {id: lynchTargetId});
             fireEvent(game.getRole(lynchedPlayer.role).onLynched, {game: gameInChannel, player: lynchedPlayer});
-            bot.channelMessage(channelId, `<@${lynchedPlayer.id}>, the **${getFaction(lynchedPlayer.faction).name} ${game.getRole(lynchedPlayer.role).name}**, was lynched!`, 1000);
+            bot.channelMessage(channelId, `<@${lynchedPlayer.id}>, the **${game.getFaction(lynchedPlayer.faction).name} ${game.getRole(lynchedPlayer.role).name}**, was lynched!`, 1000);
             lynchedPlayer.alive = false;
             lynchedPlayer.deathReason = 'Lynched D' + gameInChannel.day;
         }
@@ -360,7 +368,7 @@ var checkForGameOver = channelId => {
         var winningFactions = {};
         for (var i = 0; i < gameInChannel.players.length; i++) {
             var player = gameInChannel.players[i];
-            var result = fireEvent(getFaction(player.faction).isVictory, {game: gameInChannel, player: player});
+            var result = fireEvent(game.getFaction(player.faction).isVictory, {game: gameInChannel, player: player});
             if (result) {
                 winningFactions[player.faction] = player.faction;
             }
@@ -388,11 +396,11 @@ Mafia chat is now open to all players!
         };
 
         if (winningFactions.length == 1) {
-            var faction = getFaction(winningFactions[0]);
+            var faction = game.getFaction(winningFactions[0]);
             gameOver(`***GAME OVER!***\n**THE ${faction.name.toUpperCase()} TEAM HAS WON!!!**\nCongrats:${utils.listUsers(_.map(_.filter(gameInChannel.players, {faction: faction.id}), 'id'))}`);
             return true;
         } else if (winningFactions.length > 1) {
-            gameOver(`***GAME OVER!***\n**THERE WAS... A TIE?!** Winning factions: ${winningFactions.map(faction => getFaction(faction).name).join(', ')}`);
+            gameOver(`***GAME OVER!***\n**THERE WAS... A TIE?!** Winning factions: ${winningFactions.map(faction => game.getFaction(faction).name).join(', ')}`);
             return true;
         } else if (winningFactions.length == 0 && livePlayers.length == 0) {
             gameOver(`***GAME OVER!***\n**NOBODY WINS!!!!... somehow?**`);
@@ -747,7 +755,7 @@ var baseCommands = [
                     }
                     bot.channelMessage(message.channel.id, output);
                 } else {
-                    bot.reply(message, `There's no vote history yet!`);
+                    bot.reply(message, `There's no vote history yet! Use ${pre}votelog to see the current day's log!`);
                 }
             } else {
                 bot.reply(message, `There's no game currently running in <#${message.channel.id}>!`);
@@ -1059,33 +1067,45 @@ var baseCommands = [
         activatedOnly: true,
         onMessage: (message, args) => {
             var gameInChannel = utils.findGameById(message.channel.id);
-            if (gameInChannel && gameInChannel.state == STATE.DAY) {
+            console.log(`>>INFO adding vote for game ${message.channel.name}`);
+
+            if (!!gameInChannel && gameInChannel.state == STATE.DAY) {
                 var player = utils.findPlayerByGameAndPlayerId(gameInChannel, message.author.id);
-                if (player && player.alive) {
-                    var target = getPlayerFromString(args[1], message.channel.id);
-                    if (target) {
+                console.log(`>>INFO adding ${player.name}'s vote ...`);
+                if (!!player && player.alive) {
+                    var target = utils.findPlayerByNameAndChannelId(args[1], message.channel.id);
+                    if (!!target) {
+                        console.log(`>>INFO Found player ${target} where intention was ${args[1]} ...`);
                         if (!target.alive) {
                             bot.reply(message, `You can't vote for the dead player ${args[1]}!`);
                         } else if (target.id == message.author.id) {
                             bot.reply(message, `You can't vote for yourself!`);
                         } else {
+                            console.log(`>>INFO Vote is valid ... counting`);
                             _.pullAllBy(gameInChannel.votes, [{playerId: message.author.id}], 'playerId');
                             gameInChannel.votes.push({playerId: message.author.id, targetId: target.id, time: new Date()});
                             gameInChannel.voteLog.push({playerName: message.author.username, targetName: target.name});
+                            console.log(`>>INFO Votes changed successfully!`);
                             bot.channelMessage(message.channel.id, `<@${message.author.id}> voted to lynch <@${target.id}>!`);
 
                             printCurrentVotes(message.channel.id);
-                            checkForLynch(message.channel.id);
+                            utils.checkForLynch(message.channel.id);
                         }
                     } else {
-                        bot.reply(message, `'${args[1]}' is not a valid vote target!`);
+                        console.log(`>>INFO Not a valid target ...`);
+                        if(!!args[1]){
+                            bot.reply(message, `'${args[1]}' is not a valid vote target!`);    
+                        } else {
+                            bot.reply(message, `I did not see a vote there, give me a name or use ${pre}NL to abstain`);
+                        }
+                        
                     }
                 }
             }
         },
     },
     {
-        commands: ['nl', 'nolynch'],
+        commands: ['nl', 'nolynch', 'abstain'],
         description: 'Vote for no lynch today',
         adminOnly: false,
         activatedOnly: true,
@@ -1100,7 +1120,7 @@ var baseCommands = [
                     bot.channelMessage(message.channel.id, `<@${message.author.id}> voted to No Lynch!`);
 
                     printCurrentVotes(message.channel.id);
-                    checkForLynch(message.channel.id);
+                    utils.checkForLynch(message.channel.id);
                 }
             }
         },
@@ -1238,7 +1258,7 @@ bot.on('message', async message => {
     var game = _.find(data.games, {mafiaChannelId: message.channel.id});
     if (game && contentLower.indexOf(pre) == 0) {
         // terrible chunk of code to emulate a vig kill
-        var player = utils.findPlayerName(gameInChannel, message.author.id);
+        var player = utils.findPlayerNameByGameAndPlayerId(gameInChannel, message.author.id);
         var actionText = 'mafia kill';
         if (game.state == STATE.NIGHT && player && player.alive) {
             if (args[0].toLowerCase() == 'kill') {
@@ -1448,7 +1468,7 @@ var mainLoop = function() {
                 var deadPlayers = [];
                 for (var playerId in currentGame.nightKills) {
                     if (currentGame.nightKills[playerId] > 0) {
-                        var deadPlayer = utils.findPlayerName(currentGame, playerId),
+                        var deadPlayer = utils.findPlayerNameByGameAndPlayerId(currentGame, playerId),
                             bulletproofBlocked = currentGame.nightKills[playerId] % bulletKill === 0 && game.getRole(deadPlayer.role).bulletproof;
                         if (!bulletproofBlocked) {
                             deadPlayer.alive = false;
@@ -1469,7 +1489,7 @@ var mainLoop = function() {
                 bot.channelMessage(currentGame.channelId, `***${s(deadPlayers.length, 'player', 's have', ' has')} died.***`, 1000);
                 for (var i = 0; i < deadPlayers.length; i++) {
                     var deadPlayer = deadPlayers[i];
-                    bot.channelMessage(game.channelId, `<@${deadPlayer.id}>, the **${getFaction(deadPlayer.faction).name} ${game.getRole(deadPlayer.role).name}**, has died!`, 1000);
+                    bot.channelMessage(game.channelId, `<@${deadPlayer.id}>, the **${game.getFaction(deadPlayer.faction).name} ${game.getRole(deadPlayer.role).name}**, has died!`, 1000);
                 }
                 if (!checkForGameOver(currentGame.channelId)) {
                     bot.channelMessage(currentGame.channelId, `Day ${currentGame.day} is now starting.`, 2000);
