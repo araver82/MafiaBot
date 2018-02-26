@@ -1,22 +1,24 @@
 "use strict";
-//global
-global.pre = '--'; // command prefix that can be used across all files
-global.bulletKill = 0.314; // sentinel number for differentiating bullet kills from other kills
 
-// requires
+//requires
 const fs = require('fs');
 const config = require('./config.js');
 const _ = require('lodash');
 const Discord = require('discord.js');
 const ext = require('./lib/ext.js');
 
+//global
+global.pre = config.prefix; // command prefix that can be used across all files
+//XXX: beware of magic constants even though PI may have been involved here
+global.bulletKill = 0.314; // sentinel number for differentiating bullet kills from other kills
+
 const STATE = require('./lib/gameStates.js');
 const s = require('./lib/pluralize.js');
 const game = require('./lib/gameLogic.js');
 const utils = require('./lib/utils.js');
 
-// init stuff 
 
+// init stuff 
 var bot = new Discord.Client();
 var data = utils.loadData();
 
