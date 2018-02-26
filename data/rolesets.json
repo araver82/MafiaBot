@@ -9,6 +9,19 @@
 		]
 	},
 	{
+		"name": "millerVSmafia2!",
+		"roles": [
+			{
+				"faction": "town",
+				"role": "miller"
+			},
+			{
+				"faction": "mafia",
+				"role": "vanilla"
+			}
+		]
+	},
+	{
 		"name": "suddendeath3",
 		"roles": [
 			{
