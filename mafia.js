@@ -211,8 +211,7 @@ bot.overwritePermissions = (channel, subject, options) => {
         return;//silent
     }
 
-    //if(!config.silentMode) 
-    console.log(`>>INFO Trying to override permissions for ${channel.name}`);
+    if(!config.silentMode) console.log(`>>INFO Trying to override permissions for ${channel.name}`);
 
     var channelExists = bot.channels.get(channel.id);
     if(!channelExists){
@@ -321,7 +320,12 @@ var fireEvent = (event, params) => {
 var endDay = (channelId, lynchTargetId) => {
     var gameInChannel = utils.findGameById(channelId);
     if (gameInChannel) {
-        bot.channelMessage(channelId, `**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n\n**!! *THERE IS NO TALKING AT NIGHT* !!**\n\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n\n`);
+
+        //TODO #2 leave optional SCUM not talking at night options
+        /*
+            bot.channelMessage(channelId, `**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n\n**!! *THERE IS NO TALKING AT NIGHT* !!**\n\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n**STOP! STOP! STOP! STOP! STOP! STOP! STOP! STOP!**\n\n`);
+        */
+
         if (lynchTargetId == 'NO LYNCH') {
             bot.channelMessage(channelId, `No one was lynched.`, 1000);
         } else {
@@ -343,6 +347,7 @@ var endDay = (channelId, lynchTargetId) => {
             for (var i = 0; i < livePlayers.length; i++) {
                 var player = livePlayers[i];
                 fireEvent(game.getRole(player.role).onNight, {game: gameInChannel, player: player});
+                //TODO fishy call with playerId uses channel-based communication
                 printCurrentPlayers(channelId, player.id);
             }
 
@@ -1080,9 +1085,11 @@ var baseCommands = [
                         console.log(`>>INFO Found player ${target} where intention was ${args[1]} ...`);
                         if (!target.alive) {
                             bot.reply(message, `You can't vote for the dead player ${args[1]}!`);
-                        } else if (target.id == message.author.id) {
-                            bot.reply(message, `You can't vote for yourself!`);
                         } else {
+                            if (target.id == message.author.id) {
+                                console.log(`>>INFO voting for self`);
+                                //bot.reply(message, `You can't vote for yourself!`);
+                            }
                             console.log(`>>INFO Vote is valid ... counting`);
                             _.pullAllBy(gameInChannel.votes, [{playerId: message.author.id}], 'playerId');
                             gameInChannel.votes.push({playerId: message.author.id, targetId: target.id, time: new Date()});
@@ -1336,8 +1343,11 @@ var mainLoop = function() {
 				console.log(`>>DEBUG PERMISSIONS for me: ${bot.user}`);
                 bot.overwritePermissions(gameChannel, bot.user, { managePermissions: true }, (error) => {
                     if (!error) {
+                        //TODO #2 leave optional SCUM not talking at night options
+                        /*
 						console.log(`>>DEBUG PERMISSIONS for everyone: ${everyoneId}`);
                         gameChannel.overwritePermissions(everyoneId, { sendMessages: false, managePermissions: false, mentionEveryone: false });
+                        */
                     }
                 });
                 // host can talk
@@ -1401,6 +1411,7 @@ var mainLoop = function() {
                 var currMinute = Math.floor(currentGame.timeLimit/(1000*60));
                 if (currentGame.timeLimit <= config.dayTimeLimitWarning && prevMinute != currMinute) {
 					bot.channelMessage(currentGame.channelId, `**WARNING:** Only ***${s(currMinute + 1, 'minute')}*** left until an automatic **No Lynch**! Use ***${pre}extend*** to vote for a ${Math.floor(config.dayTimeLimitExtension/(60*1000))}-minute time limit extension.`);
+                    printCurrentVotes(currentGame.channelId);
 				}
             }
         }
